@@ -31,16 +31,16 @@ def words_freq_without_rare(word_frequency):
 
 # Delete the rare words from the articles.
 def delete_rare_words(word_frequency, articles):
-        filtered_articles = {}
+    filtered_articles = {}
 
-        for id, article in articles:
-            article_without_rare = []
-            for word in article:
-                if word in word_frequency:
-                    article_without_rare.append(word)
-            filtered_articles[id] = article_without_rare
+    for id, article in articles:
+        article_without_rare = []
+        for word in article:
+            if word in word_frequency:
+                article_without_rare.append(word)
+        filtered_articles[id] = article_without_rare
 
-        return filtered_articles
+    return filtered_articles
 
 # n_t_k in class : frequency of word k in doc t. 
 # Returns the dictionary of word_frequency in a specific article for every acrticles
