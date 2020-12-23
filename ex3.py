@@ -125,10 +125,6 @@ def likelihood_calculation(m, z, k):
 def lidstone_smooth(word_frequency, train_set_size, vocabulary_size, lambda_val):
         return (word_frequency + lambda_val) / (train_set_size + lambda_val * vocabulary_size)
 
-def lidstone_perplexity(dataset, dataset_size, lambda_var):
-        sigma = sum([math.log2(self.calculate_prob_lambda(w, lambda_var)) for w in dataset])
-        return 2**((-1 / dataset_size) * sigma)
-
 def clusters_init(articles_dict):
     clusters = {}
 
