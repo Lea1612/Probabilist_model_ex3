@@ -1,60 +1,53 @@
 # Lea Fanny Setruk	Vladimir Balagula	345226179	323792770
 
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 
-k = 10
-nb_clusters = 9
-lambda_val = 1 #??
+NB_CLUSTERS = 9
+LAMBDA = 1  # ??
 
-# Get the topics list
+
+#
 def get_topics(topics_set_file_name):
-    topics_list = []
-
-    with open(topics_set_file_name) as f:
-
-        for line in f:
-            
-            if line != "\n" and line != "":
-                topics_list.append(line.strip())
-
-    return topics_list
+    """
+    Get the topics list
+    :param topics_set_file_name:
+    :return:
+    """
+    return [line.strip() for line in open(topics_set_file_name).readlines()
+            if line not in ["\n", ""]]
 
 
-# Calculate the frequency of the words when rare words are deleted. 
-# We get a new dictionary of words_frequency without the rare words.
 def words_freq_without_rare(word_frequency):
-    filtered_words_freq = {}
+    """
+    Calculate the frequency of the words when rare words are deleted.
+    We get a new dictionary of words_frequency without the rare words.
+    :param word_frequency:
+    :return:
+    """
+    return {word: freq for word, freq in word_frequency.items() if freq > 3}
 
-    for word, frequency in word_frequency.items():
 
-        if frequency > 3:
-            filtered_words_freq[word] = frequency
-
-    return filtered_words_freq
-
-# Delete the rare words from the articles.
 def delete_rare_words(word_frequency, articles):
-    filtered_articles = {}
+    """
+    Delete the rare words from the articles.
+    :param word_frequency:
+    :param articles:
+    :return:
+    """
+    return {id_art: [w for w in article if w in word_frequency]
+            for id_art, article in articles.items()}
 
-    for id, article in articles.items():
-        article_without_rare = []
-        for word in article:
-            if word in word_frequency:
-                article_without_rare.append(word)
-        filtered_articles[id] = article_without_rare
 
-    return filtered_articles
-
-# n_t_k in class : frequency of word k in doc t. 
-# Returns the dictionary of word_frequency in a specific article for every acrticles
 def frequency_word_in_article(articles):
-    article_words_counter = {}
+    """
+    n_t_k in class : frequency of word k in doc t.
+    Returns the dictionary of word_frequency in a specific article for every acrticles
+    :param articles:
+    :return:
+    """
+    return {id_art: Counter(article) for id_art, article in articles.items()}
 
-    for id, article in articles.items():
-        article_words_counter[id] = Counter(article)
-
-    return article_words_counter
 
 # Make an articles dictionary with index same index of headers dictionary. In order to couple topic with article
 # Returns the word_frequency without rare words the articles without rare words 
@@ -69,7 +62,7 @@ def articles_topics_without_rare(dev_set_file_name):
     with open(dev_set_file_name) as f:
         for line in f:
             # print(f'line:{line}')
-            if "<TRAIN" in line or "<TEST" in line: 
+            if "<TRAIN" in line or "<TEST" in line:
                 headers_dict[header_id] = line.replace("<", "").replace(">", "").split("\t")
                 header_id += 1
 
@@ -78,13 +71,7 @@ def articles_topics_without_rare(dev_set_file_name):
                 # print(line_article)
                 articles_dict[article_id] = line_article
                 article_id += 1
-
-                for word in line_article:
-                    if word not in word_frequency:
-                        word_frequency.setdefault(word, 1)
-                    else:
-                        word_frequency[word] += 1
-
+                word_frequency = Counter(line_article)
 
     # print(f'art:{articles_dict}')
     # print(f'word_freq:{word_frequency}')
@@ -98,8 +85,8 @@ def articles_topics_without_rare(dev_set_file_name):
     # print(frequency_in_article)
 
     return word_frequency, articles_dict, frequency_in_article
-              
-      
+
+
 # Calculation of likelihood like written on the helper doc. We need in EM to calculate m and z
 def likelihood_calculation(m, z, k):
     # m = max(z_i)
@@ -111,7 +98,7 @@ def likelihood_calculation(m, z, k):
         # sum_exp_z = sum(exp(z_i))
         sum_exp_z = 0
 
-        for i in range (len(z[t])):
+        for i in range(len(z[t])):
             # z_m = z_i^t - m^t
             z_m = z[t][i] - m[t]
 
@@ -122,25 +109,50 @@ def likelihood_calculation(m, z, k):
 
     return likelihood
 
-def lidstone_smooth(word_frequency, train_set_size, vocabulary_size, lambda_val):
+
+class EM(object):
+    def __init__(self, articles_dict):
+        self.clusters = defaultdict(list)
+        self.weights = defaultdict(dict)
+        self._init_probability(articles_dict)
+
+    def _init_probability(self,articles_dict):
+        self.clusters_init(articles_dict)
+        self.m_step()
+
+    def clusters_init(self, articles_dict):
+
+        for i in range(len(articles_dict)):
+            cluster = i % NB_CLUSTERS
+            self.clusters[cluster].append(i)
+
+        for c_id, art_lst in self.clusters.items():
+            for art in art_lst:
+                self.weights[art] = defaultdict(lambda: 0)
+                self.weights[art][c_id] = 1
+
+
+    def lidstone_smooth(self, word_frequency, train_set_size, vocabulary_size, lambda_val):
         return (word_frequency + lambda_val) / (train_set_size + lambda_val * vocabulary_size)
 
-def clusters_init(articles_dict):
-    clusters = {}
+    def m_step(self, article_list, words):
+        relation_cluster = []
+        probs = defaultdict(dict)
+        for cl_id in self.clusters:
+            relation_cluster.append(sum([self.weights[art][cl_id]*sum(article_list[art].values())
+                                    for art in article_list]))
 
-    for i in range(len(articles_dict)):
-        cluster = (i+1) % nb_clusters
+        for word in words:
+            m_num = 0
+            for cl_id in self.clusters:
+                [for art_id]
+                for art_id in article_list:
+                    if word in article_list[art_id] and self.weights[art_id][cl_id]!=0:
+                        m_num += self.weights[art_id][cl_id]*article_list[art_id][word]
 
-        # if cluster == 0 : if cluster = 9j modulo 9 : 9j-th article
-        if cluster == 0:
-            cluster = nb_clusters
 
-        if cluster not in clusters:
-            clusters[cluster] = []
 
-        clusters[cluster].append(i)
 
-    return clusters
 
 def e_step():
     # m = max(z_i)
@@ -148,6 +160,7 @@ def e_step():
     m = []
     z = []
     w = {}
+
 
 # function for perplexity
 # e step
@@ -163,9 +176,9 @@ def main():
     topics_set_file_name = "dataset/topics.txt"  # sys.argv[2]
     topics = get_topics(topics_set_file_name)
     word_frequency, articles_dict, frequency_in_article = articles_topics_without_rare(dev_set_file_name)
+    EM(articles_dict)
+    print("X")
 
 
 if __name__ == "__main__":
     main()
-
-    
