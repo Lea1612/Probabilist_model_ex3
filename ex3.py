@@ -2,9 +2,12 @@
 
 import math
 from collections import Counter, defaultdict
+import numpy as np
 
 NB_CLUSTERS = 9
 LAMBDA = 1  # ??
+ALPHA_THRESHOLD = 0.000001
+K_PARAM = 10
 
 
 #
@@ -71,7 +74,12 @@ def articles_topics_without_rare(dev_set_file_name):
                 # print(line_article)
                 articles_dict[article_id] = line_article
                 article_id += 1
-                word_frequency = Counter(line_article)
+                
+                for word in line_article:
+                    if word not in word_frequency:
+                        word_frequency.setdefault(word, 1)
+                    else:
+                        word_frequency[word] += 1
 
     # print(f'art:{articles_dict}')
     # print(f'word_freq:{word_frequency}')
@@ -105,20 +113,26 @@ def likelihood_calculation(m, z, k):
             if z_m >= -k:
                 sum_exp_z += math.exp(z_m)
 
-        likelihood += math.log(sum_exp_z) + m[t]
+        likelihood += np.log(sum_exp_z) + m[t]
 
     return likelihood
 
+def perplexity_calculation(current_likelihood, words):
+        return math.pow(2, (-1 / sum(words.values()) * current_likelihood))
+
 
 class EM(object):
-    def __init__(self, articles_dict):
+    def __init__(self, articles_dict, words):
         self.clusters = defaultdict(list)
         self.weights = defaultdict(dict)
-        self._init_probability(articles_dict)
+        self.articles_dict = articles_dict
+        self.words = words
+        self._init_alpha_probability(articles_dict, words)
 
-    def _init_probability(self,articles_dict):
+    def _init_alpha_probability(self,articles_dict, words):
         self.clusters_init(articles_dict)
-        self.m_step()
+        alpha, probs = self.m_step(articles_dict, words)
+        return(alpha, probs)
 
     def clusters_init(self, articles_dict):
 
@@ -135,31 +149,73 @@ class EM(object):
     def lidstone_smooth(self, word_frequency, train_set_size, vocabulary_size, lambda_val):
         return (word_frequency + lambda_val) / (train_set_size + lambda_val * vocabulary_size)
 
-    def m_step(self, article_list, words):
+    def m_step(self, article_dict, words):
         relation_cluster = []
+        alpha = [0] * len(self.clusters)
         probs = defaultdict(dict)
         for cl_id in self.clusters:
-            relation_cluster.append(sum([self.weights[art][cl_id]*sum(article_list[art].values())
-                                    for art in article_list]))
+            relation_cluster.append(sum([self.weights[art][cl_id]*sum(article_dict[art].values())
+                                    for art in article_dict]))
 
         for word in words:
             m_num = 0
             for cl_id in self.clusters:
-                [for art_id]
-                for art_id in article_list:
-                    if word in article_list[art_id] and self.weights[art_id][cl_id]!=0:
-                        m_num += self.weights[art_id][cl_id]*article_list[art_id][word]
+                for art_id in article_dict:
+                    if word in article_dict[art_id] and self.weights[art_id][cl_id]!=0:
+                        m_num += self.weights[art_id][cl_id]*article_dict[art_id][word]
+                    probs[word][cl_id] = self.lidstone_smooth(m_num, relation_cluster[cl_id],len(words), LAMBDA)
+        
+        for i in self.clusters:
+            for art_id in article_dict:
+                alpha[i] += self.weights[art_id][i]
+            alpha[i] /= len(article_dict)
+
+        for i in range(len(alpha)):
+            if alpha[i] < ALPHA_THRESHOLD:
+                alpha[i] = ALPHA_THRESHOLD
+        
+        alpha = [topic_index / sum(alpha) for topic_index in alpha]
+
+        return alpha, probs
 
 
+    def e_step(self, articles_dict, words):
+        # m = max(z_i)
+        # zi = ln(ai) + Sigma(Ntk) * Pik
+        m_list = []
+        m = []
+        z_list = []
+        z = []
+        w = {}
 
+        alpha, probs = self._init_alpha_probability(articles_dict, words)
 
+        for art_id, frequencies in articles_dict.items():
+            w[art_id] = {}
+            z_value_current_sum = 0
 
-def e_step():
-    # m = max(z_i)
-    # z = z_i = ln(alpha_i...)
-    m = []
-    z = []
-    w = {}
+            for i in self.clusters:
+                sum_ln = 0
+                for word in words:
+                    sum_ln += np.log(probs[word][i]) * words[word]
+                z_list.append(np.log(alpha[i]) + sum_ln)
+            m_list = max(z_list)
+
+            for i in self.clusters:
+                if z_list[i] - m_list < -K_PARAM:
+                    w[art_id][i] = 0
+
+                else:
+                    w[art_id][i] = math.exp(z_list[i] - m_list)
+                    z_value_current_sum += w[art_id][i]
+            
+            for i in self.clusters:
+                w[art_id][i] /= z_value_current_sum
+
+            z.append(z_list)
+            m.append(m_list)
+
+        return w, z, m
 
 
 # function for perplexity
@@ -175,8 +231,12 @@ def main():
     dev_set_file_name = "dataset/develop.txt"  # sys.argv[1]
     topics_set_file_name = "dataset/topics.txt"  # sys.argv[2]
     topics = get_topics(topics_set_file_name)
-    word_frequency, articles_dict, frequency_in_article = articles_topics_without_rare(dev_set_file_name)
-    EM(articles_dict)
+    word_frequency, articles, frequency_in_article = articles_topics_without_rare(dev_set_file_name)
+    em_algo = EM(frequency_in_article, word_frequency)
+    m_alpha, m_prob = em_algo.m_step(frequency_in_article, word_frequency)
+    w, z, v = em_algo.e_step(frequency_in_article, word_frequency)
+    print(w)
+
     print("X")
 
 
