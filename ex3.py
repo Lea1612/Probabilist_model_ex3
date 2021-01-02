@@ -145,7 +145,6 @@ class EM(object):
         for word in words:
             m_num = 0
             for cl_id in self.clusters:
-                [for art_id]
                 for art_id in article_list:
                     if word in article_list[art_id] and self.weights[art_id][cl_id]!=0:
                         m_num += self.weights[art_id][cl_id]*article_list[art_id][word]
