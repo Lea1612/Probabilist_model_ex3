@@ -1,4 +1,4 @@
-# Lea Fanny Setruk	Vladimir Balagula	345226179	323792770
+# Lea Fanny Setruk	Vladimir Balagula	
 
 from collections import Counter, defaultdict
 from datetime import datetime
